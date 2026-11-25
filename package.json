@@ -10,7 +10,9 @@
     "test:watch": "vitest",
     "test:db": "cross-env RUN_DB_TESTS=1 vitest run",
     "export:sqlite": "tsx src/scripts/export-sqlite.ts",
-    "import:gtfs": "tsx src/scripts/import-gtfs.ts"
+    "import:gtfs": "tsx src/scripts/import-gtfs.ts",
+    "download:gtfs": "tsx src/scripts/download-gtfs.ts",
+    "update:data": "npm run download:gtfs && npm run import:gtfs -- --dir data/gtfs_metrofor && npm run export:sqlite"
   },
   "repository": {
     "type": "git",
@@ -43,6 +45,7 @@
     "dotenv": "^17.4.1",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
+    "fflate": "^0.8.3",
     "pg": "^8.20.0"
   }
 }
