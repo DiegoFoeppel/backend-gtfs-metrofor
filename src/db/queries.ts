@@ -1,6 +1,15 @@
-import { eq, sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { db } from "./index.js";
-import { trips } from "./schema/trips.js";
+
+// "HH:MM:SS" (aceita 24h+) -> minutos desde a meia-noite
+export const minutesOfDay = (column: SQL) =>
+  sql`(split_part(${column}, ':', 1)::int * 60 + split_part(${column}, ':', 2)::int)`;
+
+// minuto atual em America/Fortaleza (independe do fuso do servidor/banco)
+export const nowMinutesFortaleza = sql`(
+  EXTRACT(HOUR FROM now() AT TIME ZONE 'America/Fortaleza')::int * 60 +
+  EXTRACT(MINUTE FROM now() AT TIME ZONE 'America/Fortaleza')::int
+)`;
 
 export const getShape = async (routeId: string) =>
   db.execute(sql`

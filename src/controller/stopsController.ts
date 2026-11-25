@@ -1,18 +1,17 @@
-import { Request, Response } from "express";
-import { db, gtfs } from "../db/index.js";
-import { stops } from "../db/schema/stops.js";
+import { type Request, type Response } from "express";
 import { eq, sql } from "drizzle-orm";
-import { trips } from "../db/schema/trips.js";
-import { routes } from "../db/schema/index.js";
+import { db } from "../db/index.js";
+import { stops } from "../db/schema/stops.js";
+import { minutesOfDay, nowMinutesFortaleza } from "../db/queries.js";
 
-export const getStops = async (req: Request, res: Response) => {
+export const getStops = async (_req: Request, res: Response) => {
   try {
     const allStops = await db.select().from(stops);
 
     return res.status(200).json({ stops: allStops });
   } catch (err) {
-    console.log("err", err);
-    res.status(500).json({ error: err });
+    console.error("Get all stops error:", err);
+    return res.status(500).json({ error: "Failed to fetch stops" });
   }
 };
 
@@ -20,80 +19,76 @@ export const getStopById = async (req: Request, res: Response) => {
   try {
     const stopId = String(req.params.stopId);
 
-    const [stop] = await db
-      .select()
-      .from(stops)
-      .fullJoin(routes, eq(stops.stopId, routes.routeId))
-      .where(eq(stops.stopId, stopId));
+    const [stop] = await db.select().from(stops).where(eq(stops.stopId, stopId));
 
     if (!stop) {
-      res
+      return res
         .status(404)
         .json({ error: "couldnt find stop with the provided stopId" });
     }
 
-    res.status(200).send({
-      stop,
-    });
+    return res.status(200).json({ stop });
   } catch (err) {
-    console.log("err", err);
-    res.status(500).json({ error: err });
+    console.error("Get stop error:", err);
+    return res.status(500).json({ error: "Failed to fetch stop" });
   }
 };
 
 export const getStopTimetables = async (req: Request, res: Response) => {
   try {
-    console.log("req", req.query);
-
     const stopId = String(req.params.stopId);
-    const direction = Number(req.query.directionId);
+    const direction =
+      req.query.directionId === undefined
+        ? null
+        : Number(req.query.directionId);
 
-    console.log("dsna", direction);
-    const next = Number(req.query.next ?? 3);
-    const from = String(req.query.from ?? "00:00");
+    if (direction !== null && !Number.isInteger(direction)) {
+      return res.status(400).json({ error: "directionId must be an integer" });
+    }
 
-    const [stop] = await db
-      .select()
-      .from(stops)
-      .where(eq(stops.stopId, stopId));
+    const limit = Math.min(Math.max(Number(req.query.next) || 5, 1), 20);
+
+    const [stop] = await db.select().from(stops).where(eq(stops.stopId, stopId));
 
     if (!stop) {
-      res
+      return res
         .status(404)
         .json({ error: "couldnt find stop with the provided stopId" });
     }
 
-    if (Number.isNaN(direction)) {
+    // sem sentido: grade completa do dia, agrupada por sentido
+    if (direction === null) {
       const result = await db.execute(sql`
-            SELECT
-          direction_id as "directionId",
-          trip_headsign as sentido,
-          array_agg(LEFT(departure_time, 5) ORDER BY departure_time) AS horarios
-      FROM gtfs_metrofor.stop_times 
-      JOIN gtfs_metrofor.trips t 
-          ON t.trip_id = stop_times.trip_id
-      WHERE stop_id = ${stopId}
-      GROUP BY 
-          trip_headsign, direction_id;
+        SELECT
+          t.direction_id AS "directionId",
+          TRIM(t.trip_headsign) AS sentido,
+          array_agg(LEFT(st.departure_time, 5) ORDER BY st.departure_time) AS horarios
+        FROM gtfs_metrofor.stop_times st
+        JOIN gtfs_metrofor.trips t ON t.trip_id = st.trip_id
+        WHERE st.stop_id = ${stopId}
+        GROUP BY t.trip_headsign, t.direction_id
+        ORDER BY t.direction_id
       `);
       return res.status(200).json({ stop, timetables: result.rows });
     }
 
+    // com sentido: próximas partidas a partir de agora (fuso de Fortaleza)
     const result = await db.execute(sql`
-        SELECT LEFT(st.departure_time, 5) AS horario
-        FROM gtfs_metrofor.stop_times st
-        JOIN gtfs_metrofor.trips t ON t.trip_id = st.trip_id
-        WHERE st.stop_id = ${stopId}
-          AND t.direction_id = ${direction}
-          AND LEFT(st.departure_time, 5)::TIME >= CURRENT_TIME
-        ORDER BY st.departure_time
-        LIMIT 5
+      SELECT LEFT(st.departure_time, 5) AS horario
+      FROM gtfs_metrofor.stop_times st
+      JOIN gtfs_metrofor.trips t ON t.trip_id = st.trip_id
+      WHERE st.stop_id = ${stopId}
+        AND t.direction_id = ${direction}
+        AND ${minutesOfDay(sql`st.departure_time`)} >= ${nowMinutesFortaleza}
+      ORDER BY st.departure_time
+      LIMIT ${limit}
     `);
+
     return res
       .status(200)
       .json({ stop, nextDepartures: result.rows.map((r) => r.horario) });
   } catch (err) {
-    console.log("err", err);
-    res.status(500).json({ error: err });
+    console.error("Get stop timetables error:", err);
+    return res.status(500).json({ error: "Failed to fetch timetables" });
   }
 };
