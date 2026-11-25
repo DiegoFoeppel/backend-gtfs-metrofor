@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db": "cross-env RUN_DB_TESTS=1 vitest run",
-    "export:sqlite": "tsx src/scripts/export-sqlite.ts"
+    "export:sqlite": "tsx src/scripts/export-sqlite.ts",
+    "import:gtfs": "tsx src/scripts/import-gtfs.ts"
   },
   "repository": {
     "type": "git",
