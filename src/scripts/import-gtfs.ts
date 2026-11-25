@@ -1,5 +1,5 @@
 // Importa os arquivos GTFS (.txt) de uma pasta para o Postgres.
-// Uso: npm run import:gtfs -- [--dir data/gtfs_merged] [--schema gtfs_metrofor] [--dry-run]
+// Uso: npm run import:gtfs -- [--dir data/gtfs_metrofor] [--schema gtfs_metrofor] [--dry-run]
 //
 // - stops, trips, stop_times e calendar são substituídos pelo conteúdo dos arquivos;
 // - routes é atualizada por upsert e preserva o city_id (que o GTFS não traz);
@@ -133,7 +133,7 @@ function arg(name: string, fallback: string) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const dir = path.resolve(arg("dir", "data/gtfs_merged"));
+  const dir = path.resolve(arg("dir", "data/gtfs_metrofor"));
   const schema = arg("schema", process.env.GTFS_SCHEMA ?? "gtfs_metrofor");
   const dryRun = process.argv.includes("--dry-run");
 

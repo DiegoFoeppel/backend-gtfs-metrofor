@@ -47,8 +47,6 @@ CREATE TABLE stop_times (
   arrival_sec INTEGER, departure_sec INTEGER,
   PRIMARY KEY (trip_id, stop_sequence)
 ) WITHOUT ROWID;
--- traçado da linha: lista JSON de [lon, lat]
-CREATE TABLE route_shapes (route_id TEXT PRIMARY KEY, coordinates TEXT NOT NULL);
 CREATE INDEX idx_trips_route_dir ON trips (route_id, direction_id);
 CREATE INDEX idx_stop_times_stop ON stop_times (stop_id, trip_id);
 `;
@@ -169,28 +167,6 @@ export async function exportSqlite(client: pg.Client, outFile: string) {
       toSeconds(r.departure_time as string),
     ],
   );
-
-  // traçado das linhas (PostGIS); pode não existir em bases sem as geometrias
-  try {
-    await load(
-      "route_shapes",
-      `SELECT route_id, ST_AsGeoJSON(ST_LineMerge(wkb_geometry))::json AS geo
-       FROM ${S}.linhas_metro WHERE route_id IS NOT NULL`,
-      ["route_id", "coordinates"],
-      (r) => {
-        const geo = r.geo as { type: string; coordinates: unknown };
-        // multilinestring que não une vira lista de listas: junta os trechos
-        const coords =
-          geo.type === "LineString"
-            ? geo.coordinates
-            : (geo.coordinates as unknown[][]).flat();
-        return [r.route_id, JSON.stringify(coords)];
-      },
-    );
-  } catch (e) {
-    counts.route_shapes = 0;
-    console.warn("route_shapes ignorado:", (e as Error).message);
-  }
 
   const meta = sqlite.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
   meta.run("schema_version", String(SCHEMA_VERSION));

@@ -15,14 +15,17 @@ Projeto gtfs metrofor. Criar API com os dados das linhas de metrô do Ceará.
 ## Scripts de dados
 
 ```bash
-# 1. junta os feeds baixados em data/gtfs_<feed>/ (metrofor, etufor, arce)
-npx tsx src/scripts/merge-feeds.ts          # gera data/gtfs_merged/
+# 1. baixa o feed do Metrofor (https://info.metrofor.ce.gov.br/gtfs_file) em data/gtfs_metrofor/
+npm run download:gtfs
 
-# 2. importa os .txt para o Postgres (use --dry-run para só simular)
-npm run import:gtfs -- --dir data/gtfs_merged [--schema gtfs_metrofor] [--dry-run]
+# 2. importa os .txt para o Postgres (--dry-run só simula)
+npm run import:gtfs -- [--dir data/gtfs_metrofor] [--schema gtfs_metrofor] [--dry-run]
 
 # 3. gera o SQLite que o app mobile embarca
 npm run export:sqlite -- --out ../metrofor-gtfs/assets/metrofor.db
+
+# tudo de uma vez: download + import + export
+npm run update:data
 ```
 
 O import substitui stops, trips, stop_times e calendar, e faz upsert das routes
