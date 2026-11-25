@@ -86,7 +86,7 @@ export const getStopsByRouteId = async (req: Request, res: Response) => {
       .where(eq(routes.routeId, routeId as string));
 
     if (!route) {
-      res
+      return res
         .status(404)
         .json({ error: "couldnt find route with the provided routeId" });
     }
@@ -95,10 +95,10 @@ export const getStopsByRouteId = async (req: Request, res: Response) => {
       getDirections(String(routeId)),
       getStops(String(routeId), directionId),
     ]);
-    res.status(202).json({ directions, stops, route });
+    return res.status(200).json({ directions, stops, route });
   } catch (err) {
-    console.log("err", err);
-    res.status(500).json({ error: err });
+    console.error("Get route stops error:", err);
+    return res.status(500).json({ error: "Failed to fetch route stops" });
   }
 };
 
