@@ -2,7 +2,7 @@ import { db } from "../db/index.js";
 import { routes } from "../db/schema/routes.js";
 import { type Request, type Response } from "express";
 import { sql, eq } from "drizzle-orm";
-import { getDirections, getStops } from "../db/queries.js";
+import { getDirections, getStops, getTravelTime } from "../db/queries.js";
 
 export const getCheck = (req: Request, res: Response) => {
   res.status(200).json({
@@ -97,5 +97,38 @@ export const getStopsByRouteId = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Get route stops error:", err);
     return res.status(500).json({ error: "Failed to fetch route stops" });
+  }
+};
+
+export const getRouteTravelTime = async (req: Request, res: Response) => {
+  try {
+    const routeId = String(req.params.routeId);
+    const from = String(req.query.from ?? "");
+    const to = String(req.query.to ?? "");
+    const directionId =
+      req.query.directionId === undefined ? null : Number(req.query.directionId);
+
+    if (!from || !to) {
+      return res.status(400).json({ error: "from and to are required" });
+    }
+    if (from === to) {
+      return res.status(400).json({ error: "from and to must be different" });
+    }
+    if (directionId !== null && !Number.isInteger(directionId)) {
+      return res.status(400).json({ error: "directionId must be an integer" });
+    }
+
+    const result = await getTravelTime(routeId, from, to, directionId);
+
+    if (!result || result.trips === 0) {
+      return res.status(404).json({
+        error: "no direct trip between these stops on this route",
+      });
+    }
+
+    return res.status(200).json({ routeId, from, to, ...result });
+  } catch (err) {
+    console.error("Get travel time error:", err);
+    return res.status(500).json({ error: "Failed to calculate travel time" });
   }
 };

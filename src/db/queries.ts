@@ -102,3 +102,44 @@ export const getStops = async (routeId: string, directionId: number) => {
 
 //   return stops.rows;
 // };
+
+// "HH:MM:SS" (aceita 24h+) -> segundos desde a meia-noite
+const secondsOfDay = (column: SQL) =>
+  sql`(split_part(${column}, ':', 1)::int * 3600 + split_part(${column}, ':', 2)::int * 60 + split_part(${column}, ':', 3)::int)`;
+
+// tempo de viagem direto (sem baldeação) entre duas paradas de uma linha:
+// chegada em `to` menos saída de `from`, na mesma viagem, com `to` depois de `from`.
+export const getTravelTime = async (
+  routeId: string,
+  fromStopId: string,
+  toStopId: string,
+  directionId: number | null,
+) => {
+  const result = await db.execute(sql`
+    WITH durations AS (
+      SELECT
+        ${secondsOfDay(sql`COALESCE(b.arrival_time, b.departure_time)`)}
+        - ${secondsOfDay(sql`COALESCE(a.departure_time, a.arrival_time)`)} AS seconds
+      FROM gtfs_metrofor.trips t
+      JOIN gtfs_metrofor.stop_times a
+        ON a.trip_id = t.trip_id AND a.stop_id = ${fromStopId}
+      JOIN gtfs_metrofor.stop_times b
+        ON b.trip_id = t.trip_id AND b.stop_id = ${toStopId}
+       AND b.stop_sequence > a.stop_sequence
+      WHERE t.route_id = ${routeId}
+        AND (${directionId}::int IS NULL OR t.direction_id = ${directionId}::int)
+    )
+    SELECT
+      COUNT(*)::int AS trips,
+      ROUND(MIN(seconds) / 60.0)::int AS "minMinutes",
+      ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) / 60.0)::int AS minutes,
+      ROUND(MAX(seconds) / 60.0)::int AS "maxMinutes"
+    FROM durations
+  `);
+  return result.rows[0] as {
+    trips: number;
+    minMinutes: number | null;
+    minutes: number | null;
+    maxMinutes: number | null;
+  };
+};
